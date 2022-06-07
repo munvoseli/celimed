@@ -1,5 +1,5 @@
-#define GL_INFO
-#define GL_SHADER_DEBUG
+//#define GL_INFO
+//#define GL_SHADER_DEBUG
 
 // link with -lSDL2 and -lGL
 

@@ -1,7 +1,23 @@
 #include "gl2d.c"
+#include "vtf.c"
 
+#define IMW 256
 
-int main(void) {
+void set_pixels(FILE* fp, int offset, float* pixels) {
+	CColor data[IMW * IMW];
+	fseek(fp, offset, SEEK_SET);
+	decode_dxt1(fp, IMW, IMW, data);
+	int i = 0;
+	int j = 0;
+	for (int y = 0; y < IMW; ++y) {
+	for (int x = 0; x < IMW; ++x) {
+		pixels[i++] = data[j].r / 31.0;
+		pixels[i++] = data[j].g / 63.0;
+		pixels[i++] = data[j].b / 31.0; ++j;
+	}}
+}
+
+int main(int argc, char** argv) {
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
 	SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 5);
 	SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 5);
@@ -15,17 +31,11 @@ int main(void) {
 	unsigned int texture;
 	glGenTextures(1, &texture);
 	glBindTexture(GL_TEXTURE_2D, texture);
-	float pixels[10000 * 3];
-	int i = 0;
-	for (int y = 0; y < 100; ++y)
-	for (int x = 0; x < 100; ++x) {
-		float v = ((float) x - (float) y + 100) / 200 + ((x ^ y) & 1 ? 0.05 : -0.05);
-		pixels[i++] = v;
-		pixels[i++] = v;
-		pixels[i++] = v;
-	}
-	glTexImage2D(GL_TEXTURE_2D, 0,
-		GL_RGB, 100, 100, 0, GL_RGB, GL_FLOAT, pixels);
+	float pixels[IMW * IMW * 3];
+	FILE* fp = fopen(argv[1], "rb");
+	VTFHEADER vtfh;
+	if (read_x50_header(&vtfh, fp) > 0) printf("failed file read\n");
+	int offset = 0x27a0;
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 //	glGenerateMipmap(GL_TEXTURE_2D);
@@ -37,20 +47,24 @@ int main(void) {
 		int w, h;
 		SDL_GetWindowSize(winp, &w, &h);
 		glViewport(0, 0, w, h);
+		set_pixels(fp, offset, pixels);
+		glTexImage2D(GL_TEXTURE_2D, 0,
+			GL_RGB, IMW, IMW, 0, GL_RGB, GL_FLOAT, pixels);
 		glClearColor(1.0f, 1.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		float points[] = {
-			1.0, 1.0, 1.0, 1.0,
-			-1.0, 1.0, 0.0, 1.0,
-			1.0, -1.0, 1.0, 0.0,
-			-1.0, -1.0, 0.0, 0.0,
-			-1.0, 1.0, 0.0, 1.0,
-			1.0, -1.0, 1.0, 0.0,
+			1.0, -1.0, 1.0, 1.0,
+			-1.0, -1.0, 0.0, 1.0,
+			1.0, 1.0, 1.0, 0.0,
+			-1.0, 1.0, 0.0, 0.0,
+			-1.0, -1.0, 0.0, 1.0,
+			1.0, 1.0, 1.0, 0.0,
 		};
 		drawWithTexture(sizeof(points), points, GL_TRIANGLES,
 			texture, &p, 0.0, 0.0, w * 0.001, h * 0.001);
 		SDL_GL_SwapWindow(winp);
-		SDL_Delay(100);
+//		offset += 1;
+		SDL_Delay(1000);
 	}
 	end:
 	SDL_GL_DeleteContext(conp);
