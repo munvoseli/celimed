@@ -1,20 +1,31 @@
 #include "gl2d.c"
 #include "vtf.c"
 
-#define IMW 128
+#define IMW 256
 
-void set_pixels(FILE* fp, int offset, float* pixels) {
-	CColor data[IMW * IMW];
+void set_pixels(FILE* fp, int offset, float* pixels, int w, int h) {
+	CColor data[w * h];
 	//fseek(fp, offset, SEEK_SET);
-	decode_dxt1(fp, IMW, IMW, data);
+	decode_dxt1(fp, w, h, data);
 	int i = 0;
 	int j = 0;
-	for (int y = 0; y < IMW; ++y) {
-	for (int x = 0; x < IMW; ++x) {
+	for (int y = 0; y < h; ++y) {
+	for (int x = 0; x < w; ++x) {
 		pixels[i++] = data[j].r / 31.0;
 		pixels[i++] = data[j].g / 63.0;
 		pixels[i++] = data[j].b / 31.0; ++j;
 	}}
+}
+
+FILE* read_vtf(char* fname, VTFHEADER* vtfhp, int* offsetp) {
+	FILE* fp = fopen(fname, "rb");
+	if (read_x50_header(vtfhp, fp) > 0) printf("failed file read\n");
+	*offsetp = 0;
+	seek_ghrimm_dxt(fp, vtfhp, 0);
+	return fp;
+}
+
+void set_next_glvtftex(FILE* fp, VTFHEADER* vtfhp, int* offsetp) {
 }
 
 int main(int argc, char** argv) {
@@ -31,11 +42,11 @@ int main(int argc, char** argv) {
 	unsigned int texture;
 	glGenTextures(1, &texture);
 	glBindTexture(GL_TEXTURE_2D, texture);
-	float pixels[IMW * IMW * 3];
-	FILE* fp = fopen(argv[1], "rb");
+	float pixels[w * h * 3];
+	FILE* fp;
 	VTFHEADER vtfh;
-	if (read_x50_header(&vtfh, fp) > 0) printf("failed file read\n");
-	int offset = 0x18b0;//0x2ba0;
+	int offset;
+	fp = read_vtf(argv[1], &vtfh, &offset);
 	// 16 (lri): 0x68
 	// 4: 0xf8 = o + 0x10
 	// 8: 0x100 = o + 0x18
@@ -48,11 +59,12 @@ int main(int argc, char** argv) {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 //	glGenerateMipmap(GL_TEXTURE_2D);
 	Paxet p = gl_shaderSetupTexture();
-	seek_ghrimm_dxt1(fp, &vtfh, 0);
+	int ti = 0;
 	for (;;) {
 		while (SDL_PollEvent(&ev))
 			if (ev.type == SDL_QUIT)
 				goto end;
+		if (offset >= vtfh.frameCt) { offset = 0; seek_ghrimm_dxt1(fp, &vtfh, 0); }
 		int w, h;
 		SDL_GetWindowSize(winp, &w, &h);
 		glViewport(0, 0, w, h);
@@ -73,7 +85,6 @@ int main(int argc, char** argv) {
 			texture, &p, 0.0, 0.0, w * 0.001, h * 0.001);
 		SDL_GL_SwapWindow(winp);
 		offset += 1;
-		if (offset >= vtfh.frameCt) { offset = 0; seek_ghrimm_dxt1(fp, &vtfh, 0); }
 		SDL_Delay(100);
 	}
 	end:

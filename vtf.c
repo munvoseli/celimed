@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include "vtf.h"
 
-
 char read_x50_header(VTFHEADER* vtfhp, FILE* fp) {
 	fread(&vtfhp->sig, 4, 1, fp);
 	if (vtfhp->sig[0] != 'V'

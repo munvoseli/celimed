@@ -102,3 +102,27 @@ void seek_ghrimm_dxt1(FILE* fp, VTFHEADER* vtfhp, int frameNm) {
 	start += 0xe8 + frameNm * size * size / 2;
 	fseek(fp, start, SEEK_SET);
 }
+
+void seek_ghrimm_dxt5(FILE* fp, VTFHEADER* vtfhp, int frameNm) {
+	// skip to 4x4
+	int size = 8;
+	int start = 0x10;
+	for (int i = 2; i < vtfhp->mpmCt - 1; ++i) {
+		start += size * size;
+		size *= 2;
+	}
+	start *= vtfhp->frameCt;
+	start += 0xe8 + frameNm * size * size;
+	fseek(fp, start, SEEK_SET);
+}
+
+void seek_ghrimm_dxt(FILE* fp, VTFHEADER* vtfhp, int frameNm) {
+	switch (vtfhp->hriFmt) {
+	case 0xd:
+		seek_ghrimm_dxt1(fp, vtfhp, frameNm);
+		break;
+	case 0xf:
+		seek_ghrimm_dxt5(fp, vtfhp, frameNm);
+		break;
+	}
+}
