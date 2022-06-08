@@ -1,5 +1,50 @@
 #include <stdio.h>
 #include "vtf.h"
+#include "dxt.c"
+
+int ofst_rgba8(VTFHEADER* vtfhp, int fNm) {
+	
+}
+
+int ofst_dxt1(VTFHEADER* vtfhp, int fNm) {
+	int size = 4;
+	int x = 0x10;
+	for (int i = 2; i < vtfhp->mpmCt - 1; ++i) {
+		x += size * size / 2;
+		size *= 2;
+	}
+	x *= vtfhp->frameCt;
+	x += fNm * size * size / 2;
+	return x;
+}
+
+int ofst_dxt5(VTFHEADER* vtfhp, int fNm) {
+	int size = 4;
+	int x = 0x10;
+	for (int i = 2; i < vtfhp->mpmCt - 1; ++i) {
+		x += size * size;
+		size *= 2;
+	}
+	x *= vtfhp->frameCt;
+	x += fNm * size * size + 16;
+	return x;
+}
+
+// seeks to highest resolution in mipmap
+void seekto_hri_frame(FILE* fp, VTFHEADER* vtfhp, int fNm) {
+	int offset;
+	switch (vtfhp->hriFmt) {
+	case 0xd:
+		offset = ofst_dxt1(vtfhp, fNm);
+		break;
+	case 0xf:
+		offset = ofst_dxt5(vtfhp, fNm);
+		break;
+	default:
+		printf("No support for format %d\n", vtfhp->hriFmt);
+		return;
+	}
+}
 
 char read_x50_header(VTFHEADER* vtfhp, FILE* fp) {
 	fread(&vtfhp->sig, 4, 1, fp);
@@ -56,13 +101,7 @@ char read_x50_header(VTFHEADER* vtfhp, FILE* fp) {
 	return 0;
 }
 
-typedef unsigned char u8;
 
-typedef struct {
-	u8 r; u8 g; u8 b; u8 a;
-} CColor;
-
-#include "dxt.c"
 
 void do_72(VTFHEADER* vtfhp) {
 	

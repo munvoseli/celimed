@@ -1,6 +1,12 @@
 #ifndef VTF_H
 #define VTF_H
 
+typedef unsigned char u8;
+
+typedef struct {
+	u8 r; u8 g; u8 b; u8 a;
+} CColor;
+
 static const char* format_names[] = {
 	"RGBA8888",
 	"ABGR8888",
