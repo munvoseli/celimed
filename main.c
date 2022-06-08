@@ -1,12 +1,28 @@
 #include "gl2d.c"
 #include "vtf.c"
 
-#define IMW 256
+FILE* read_vtf(char* fname, VTFHEADER* vtfhp, int* offsetp) {
+	printf("~~ Opening %s\n", fname);
+	FILE* fp = fopen(fname, "rb");
+	if (read_x50_header(vtfhp, fp) > 0) {
+		printf("failed file read\n");
+	}
+	*offsetp = 0;
+	seek_ghrimm_dxt(fp, vtfhp, 0);
+	return fp;
+}
 
-void set_pixels(FILE* fp, int offset, float* pixels, int w, int h) {
+void set_next_glvtftex(FILE* fp, VTFHEADER* vtfhp, int* offsetp) {
+	if (vtfhp->version[1] < 3) return;
+	if (*offsetp >= vtfhp->frameCt) {
+		*offsetp = 0;
+		seek_ghrimm_dxt(fp, vtfhp, 0);
+	}
+	int w = vtfhp->w;
+	int h = vtfhp->h;
+	float pixels[w * h * 3];
 	CColor data[w * h];
-	//fseek(fp, offset, SEEK_SET);
-	decode_dxt1(fp, w, h, data);
+	decode_dxt(fp, vtfhp, w, h, data);
 	int i = 0;
 	int j = 0;
 	for (int y = 0; y < h; ++y) {
@@ -15,17 +31,8 @@ void set_pixels(FILE* fp, int offset, float* pixels, int w, int h) {
 		pixels[i++] = data[j].g / 63.0;
 		pixels[i++] = data[j].b / 31.0; ++j;
 	}}
-}
-
-FILE* read_vtf(char* fname, VTFHEADER* vtfhp, int* offsetp) {
-	FILE* fp = fopen(fname, "rb");
-	if (read_x50_header(vtfhp, fp) > 0) printf("failed file read\n");
-	*offsetp = 0;
-	seek_ghrimm_dxt(fp, vtfhp, 0);
-	return fp;
-}
-
-void set_next_glvtftex(FILE* fp, VTFHEADER* vtfhp, int* offsetp) {
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_FLOAT, pixels);
+	*offsetp += 1;
 }
 
 int main(int argc, char** argv) {
@@ -42,37 +49,32 @@ int main(int argc, char** argv) {
 	unsigned int texture;
 	glGenTextures(1, &texture);
 	glBindTexture(GL_TEXTURE_2D, texture);
-	float pixels[w * h * 3];
 	FILE* fp;
 	VTFHEADER vtfh;
 	int offset;
 	fp = read_vtf(argv[1], &vtfh, &offset);
-	// 16 (lri): 0x68
-	// 4: 0xf8 = o + 0x10
-	// 8: 0x100 = o + 0x18
-	// 16: 0x120 = o + 0x38
-	// 32: 0x1a0 = o + 0xb8
-	// 64: 0x3a0 = o + 0x2b8
-	// 128: 0x3a0 + 64 * 32 = o + 0xab8
-	// 256: 0x2ba0 = o + 0x2ab8
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 //	glGenerateMipmap(GL_TEXTURE_2D);
 	Paxet p = gl_shaderSetupTexture();
-	int ti = 0;
+	int ti = 1;
 	for (;;) {
-		while (SDL_PollEvent(&ev))
+		while (SDL_PollEvent(&ev)) {
 			if (ev.type == SDL_QUIT)
 				goto end;
-		if (offset >= vtfh.frameCt) { offset = 0; seek_ghrimm_dxt1(fp, &vtfh, 0); }
+			else if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_f) {
+				++ti;
+				if (argv[ti] == NULL) ti = 1;
+				fclose(fp);
+				fp = read_vtf(argv[ti], &vtfh, &offset);
+			}
+		}
 		int w, h;
 		SDL_GetWindowSize(winp, &w, &h);
 		glViewport(0, 0, w, h);
-		set_pixels(fp, offset, pixels);
-		glTexImage2D(GL_TEXTURE_2D, 0,
-			GL_RGB, IMW, IMW, 0, GL_RGB, GL_FLOAT, pixels);
 		glClearColor(1.0f, 1.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		set_next_glvtftex(fp, &vtfh, &offset);
 		float points[] = {
 			1.0, -1.0, 1.0, 1.0,
 			-1.0, -1.0, 0.0, 1.0,
@@ -84,7 +86,6 @@ int main(int argc, char** argv) {
 		drawWithTexture(sizeof(points), points, GL_TRIANGLES,
 			texture, &p, 0.0, 0.0, w * 0.001, h * 0.001);
 		SDL_GL_SwapWindow(winp);
-		offset += 1;
 		SDL_Delay(100);
 	}
 	end:

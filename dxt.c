@@ -48,7 +48,7 @@ void decode_dxt1_block(FILE* fp, int width, CColor* data) {
 	}
 	for (int y = 0; y < 4; ++y) {
 		CColor* row = &data[y * width];
-		int rd = fgetc(fp); if (rd == EOF) printf("no no bad file\n");
+		int rd = fgetc(fp);// if (rd == EOF) printf("no no bad file\n");
 		row[3] = cl[rd >> 6];
 		row[2] = cl[(rd >> 4) & 3];
 		row[1] = cl[(rd >> 2) & 3];
@@ -72,6 +72,17 @@ void decode_dxt5(FILE* fp, int width, int height, CColor* data) {
 		fseek(fp, 8, SEEK_CUR);
 		decode_dxt1_block(fp, width, &data[offset]);
 	}}
+}
+
+void decode_dxt(FILE* fp, VTFHEADER* vtfhp, int width, int height, CColor* data) {
+	switch (vtfhp->hriFmt) {
+	case 0x0d:
+		decode_dxt1(fp, width, height, data);
+		break;
+	case 0x0f:
+		decode_dxt5(fp, width, height, data);
+		break;
+	}
 }
 
 void skip_dxt1(FILE* fp, int width, int height) {
@@ -105,14 +116,14 @@ void seek_ghrimm_dxt1(FILE* fp, VTFHEADER* vtfhp, int frameNm) {
 
 void seek_ghrimm_dxt5(FILE* fp, VTFHEADER* vtfhp, int frameNm) {
 	// skip to 4x4
-	int size = 8;
+	int size = 4;
 	int start = 0x10;
 	for (int i = 2; i < vtfhp->mpmCt - 1; ++i) {
 		start += size * size;
 		size *= 2;
 	}
 	start *= vtfhp->frameCt;
-	start += 0xe8 + frameNm * size * size;
+	start += 0xe8 + frameNm * size * size + 16;
 	fseek(fp, start, SEEK_SET);
 }
 
