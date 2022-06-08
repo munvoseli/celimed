@@ -1,11 +1,11 @@
 #include "gl2d.c"
 #include "vtf.c"
 
-#define IMW 256
+#define IMW 128
 
 void set_pixels(FILE* fp, int offset, float* pixels) {
 	CColor data[IMW * IMW];
-	fseek(fp, offset, SEEK_SET);
+	//fseek(fp, offset, SEEK_SET);
 	decode_dxt1(fp, IMW, IMW, data);
 	int i = 0;
 	int j = 0;
@@ -35,11 +35,20 @@ int main(int argc, char** argv) {
 	FILE* fp = fopen(argv[1], "rb");
 	VTFHEADER vtfh;
 	if (read_x50_header(&vtfh, fp) > 0) printf("failed file read\n");
-	int offset = 0x27a0;
+	int offset = 0x18b0;//0x2ba0;
+	// 16 (lri): 0x68
+	// 4: 0xf8 = o + 0x10
+	// 8: 0x100 = o + 0x18
+	// 16: 0x120 = o + 0x38
+	// 32: 0x1a0 = o + 0xb8
+	// 64: 0x3a0 = o + 0x2b8
+	// 128: 0x3a0 + 64 * 32 = o + 0xab8
+	// 256: 0x2ba0 = o + 0x2ab8
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 //	glGenerateMipmap(GL_TEXTURE_2D);
 	Paxet p = gl_shaderSetupTexture();
+	seek_ghrimm_dxt1(fp, &vtfh, 0);
 	for (;;) {
 		while (SDL_PollEvent(&ev))
 			if (ev.type == SDL_QUIT)
@@ -63,8 +72,9 @@ int main(int argc, char** argv) {
 		drawWithTexture(sizeof(points), points, GL_TRIANGLES,
 			texture, &p, 0.0, 0.0, w * 0.001, h * 0.001);
 		SDL_GL_SwapWindow(winp);
-//		offset += 1;
-		SDL_Delay(1000);
+		offset += 1;
+		if (offset >= vtfh.frameCt) { offset = 0; seek_ghrimm_dxt1(fp, &vtfh, 0); }
+		SDL_Delay(100);
 	}
 	end:
 	SDL_GL_DeleteContext(conp);
