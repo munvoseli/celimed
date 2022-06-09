@@ -78,6 +78,50 @@ char decode_hri_frame(FILE* fp, VTFHEADER* vtfhp, int w, int h, CColor* data) {
 	return 0;
 }
 
+int read_int(FILE* fp) {
+	return fgetc(fp) | (fgetc(fp) << 8) | (fgetc(fp) << 16) | (fgetc(fp) << 24);
+}
+
+int ruf(int x) {
+	//return (x & 3) ? (x | 3) + 1 : x;
+	return x + ((4 - (x & 3)) & 3);
+}
+
+int byte_size_fmt(unsigned int fmt, int w, int h) {
+	switch (fmt) {
+	case 0x0:
+	case 0x1:
+	case 0xb:
+	case 0xc: return w * h * 4;
+	case 0x2:
+	case 0x3: return w * h * 3;
+	case 0xd: return ruf(w) * ruf(h) / 2;
+	case 0xe:
+	case 0xf: return ruf(w) * ruf(h);
+	}
+	return 0;
+}
+
+
+int get_hri_location(FILE* fp, VTFHEADER* vtfhp) {
+	if (vtfhp->version[1] == 1)
+		return 0x40 + byte_size_fmt(vtfhp->lriFmt, vtfhp->lriW, vtfhp->lriH);
+	else if (vtfhp->version[1] == 2)
+		return 0x50 + byte_size_fmt(vtfhp->lriFmt, vtfhp->lriW, vtfhp->lriH);
+	else {
+		fseek(fp, 0x50, SEEK_SET);
+		for (int i = 0; i < 10; ++i) {
+			int c = fgetc(fp);
+			if (c == 0x30) {
+				fseek(fp, 3, SEEK_CUR);
+				return read_int(fp);
+			}
+			fseek(fp, 7, SEEK_CUR);
+		}
+		return 0xe8;
+	}
+}
+
 void draw_frames_and_mipmaps(char* fname, GLuint texture, SDL_Window* winp, Paxet* pp) {
 	printf("~~ Opening %s\n", fname);
 	FILE* fp = fopen(fname, "rb");
@@ -88,8 +132,10 @@ void draw_frames_and_mipmaps(char* fname, GLuint texture, SDL_Window* winp, Paxe
 	VTFHEADER vtfh;
 	if (read_x50_header(&vtfh, fp) > 0) {
 		printf("failed file read\n");
+		return;
 	}
-	int mipmapStart = vtfh.version[1] >= 3 ? 0x68 + 0x80 : 0x50 + 0x80;
+	if (vtfh.frameCt == 0) vtfh.frameCt = 1; // not in the spec
+	int mipmapStart = get_hri_location(fp, &vtfh);
 	fseek(fp, mipmapStart, SEEK_SET);
 	float rd, gd, bd;
 	if (vtfh.hriFmt >= 0xd && vtfh.hriFmt <= 0xf) {
@@ -100,22 +146,31 @@ void draw_frames_and_mipmaps(char* fname, GLuint texture, SDL_Window* winp, Paxe
 	int ww, wh;
 	SDL_GetWindowSize(winp, &ww, &wh);
 	glViewport(0, 0, ww, wh);
-	glClearColor(1.0f, 1.0f, 0.0f, 1.0f);
+	switch (vtfh.version[1]) {
+	case 0: glClearColor(0.0f, 0.0f, 0.0f, 1.0f); break;
+	case 1: glClearColor(0.5f, 0.5f, 0.5f, 1.0f); break;
+	case 2: glClearColor(0.0f, 0.0f, 1.0f, 1.0f); break;
+	case 3: glClearColor(0.0f, 0.8f, 0.0f, 1.0f); break;
+	case 4: glClearColor(0.8f, 0.8f, 0.0f, 1.0f); break;
+	case 5: glClearColor(1.0f, 0.0f, 0.0f, 1.0f); break;
+	default: glClearColor(1.0f, 1.0f, 1.0f, 1.0f); break;
+	}
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	int k = 0;
 	for (int mi = 0; mi < vtfh.mpmCt; ++mi) {
 		int w = vtfh.w >> (vtfh.mpmCt - mi - 1);
 		int h = vtfh.h >> (vtfh.mpmCt - mi - 1);
 		if ((w & 3) || (h & 3)) {
 			if (vtfh.hriFmt == 0xd) {
-				fseek(fp, ((w | 3) + 1) * ((h | 3) + 1) / 2, SEEK_CUR);
+				fseek(fp, ruf(w) * ruf(h) / 2, SEEK_CUR);
 				continue;
 			} else if (vtfh.hriFmt == 0xe || vtfh.hriFmt == 0xf) {
-				fseek(fp, ((w | 3) + 1) * ((h | 3) + 1), SEEK_CUR);
+				fseek(fp, ruf(w) * ruf(h), SEEK_CUR);
 				continue;
 			}
 		}
-		CColor data[w * h];
-		float pixels[w * h * 3];
+		CColor* data = malloc(w * h * sizeof(CColor));
+		float* pixels = malloc(w * h * 3 * sizeof(float));
 		for (int fi = 0; fi < vtfh.frameCt; ++fi) {
 			decode_hri_frame(fp, &vtfh, w, h, data);
 			int i = 0;
@@ -135,11 +190,14 @@ void draw_frames_and_mipmaps(char* fname, GLuint texture, SDL_Window* winp, Paxe
 				1.0, 1.0, 1.0, 0.0,
 			};
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_FLOAT, pixels);
-			float ox = mi * 2.1 - 10;
-			float oy = fi * 2.1 - 4;
+			float ox = (k % 9 - 4) * 2.1;
+			float oy = (k / 9 - 2) * 2.1;
+			++k;
 			drawWithTexture(sizeof(points), points, GL_TRIANGLES,
 				texture, pp, -ox, -oy, ww * 0.005, wh * 0.005);
 		}
+		free(data);
+		free(pixels);
 	}
 	fclose(fp);
 	SDL_GL_SwapWindow(winp);
@@ -171,9 +229,16 @@ int main(int argc, char** argv) {
 		while (SDL_WaitEvent(&ev)) {
 			if (ev.type == SDL_QUIT)
 				goto end;
-			else if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_f) {
+			else if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_j) {
 				++ti;
 				if (argv[ti] == NULL) ti = 1;
+				//fclose(fp);
+				//fp = read_vtf(argv[ti], &vtfh, &offset);
+				break;
+			}
+			else if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_k) {
+				--ti;
+				if (ti == 0) ti = argc - 1;
 				//fclose(fp);
 				//fp = read_vtf(argv[ti], &vtfh, &offset);
 				break;

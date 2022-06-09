@@ -80,11 +80,12 @@ char read_x50_header(VTFHEADER* vtfhp, FILE* fp) {
 	fseek(fp, 8, SEEK_CUR);
 	printf("Largest mipmap: %d x %d\n", vtfhp->w, vtfhp->h);
 	printf("Low res: %d x %d\n", vtfhp->lriW, vtfhp->lriH);
-	printf("%d resources, %d mipmaps, %d frames\n",
-		vtfhp->resCt, vtfhp->mpmCt, vtfhp->frameCt);
+	printf("%d mipmaps, %d frames\n", vtfhp->mpmCt, vtfhp->frameCt);
 	printf("Depth: %d\n", vtfhp->depth);
 	printf("Header size: %d 0x%x\n", vtfhp->headerBct, vtfhp->headerBct);
 	printf("Version %x.%x\n", vtfhp->version[0], vtfhp->version[1]);
+	if (vtfhp->version[1] >= 3)
+		printf("%d resources\n", vtfhp->resCt);
 	// will NOT work on some endiannesses (BIG)
 	if (vtfhp->hriFmt < 27)
 		printf("High-res image format: %s (0x%x)\n",
