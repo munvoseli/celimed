@@ -68,7 +68,7 @@ int byte_size_fmt(unsigned int fmt, int w, int h) {
 
 int fmt_get_hoffset(unsigned int fmt, int w, int h, int mpmCt, int fCt) {
 	int bs = 0;
-	for (int i = 1; i <= mpmCt; ++i) {
+	for (int i = 1; i < mpmCt; ++i) {
 		bs += byte_size_fmt(fmt, w >> i, h >> i);
 	}
 	return bs * fCt;
