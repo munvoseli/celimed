@@ -1,6 +1,3 @@
-#include <stdio.h>
-#include "vtf.h"
-#include "dxt.c"
 
 int ofst_rgba8(VTFHEADER* vtfhp, int fNm) {
 	
@@ -116,31 +113,21 @@ void do_73(VTFHEADER* vtfhp, FILE* fp, CColor* data, int offset) {
 	decode_dxt1(fp, 32, 32, data);
 }
 
-
-
-//int main(int argc, char** argv) {
-//	for (int i = 1; i < argc; ++i) {
-//		FILE* fp = fopen(argv[i], "rb");
-//		if (fp == NULL) continue;
-//		printf("\n~~ Opened %s\n", argv[i]);
-//		VTFHEADER vtfh;
-//		if (read_x50_header(&vtfh, fp) > 0) continue;
-////		int n = fread(&vtfh, 1, sizeof(VTFHEADER), fp);
-////		if (n < sizeof(VTFHEADER)) {
-////			printf("File %s not big enough (%d < %d)\n", argv[i],
-////			n, sizeof(VTFHEADER));
-////			printf("(%x < %x)\n", argv[i], n, sizeof(VTFHEADER));
-////		}
-//		if (vtfh.version[0] == 7) {
-//			switch (vtfh.version[1]) {
-//			case 2:
-//				do_72(&vtfh);
-//				break;
-//			case 3:
-//			case 4:
-//				do_73(&vtfh, fp);
-//				break;
-//			}
-//		}
-//	}
-//}
+int get_hri_location(FILE* fp, VTFHEADER* vtfhp) {
+	if (vtfhp->version[1] == 1)
+		return 0x40 + byte_size_fmt(vtfhp->lriFmt, vtfhp->lriW, vtfhp->lriH);
+	else if (vtfhp->version[1] == 2)
+		return 0x50 + byte_size_fmt(vtfhp->lriFmt, vtfhp->lriW, vtfhp->lriH);
+	else {
+		fseek(fp, 0x50, SEEK_SET);
+		for (int i = 0; i < 10; ++i) {
+			int c = fgetc(fp);
+			if (c == 0x30) {
+				fseek(fp, 3, SEEK_CUR);
+				return read_int(fp);
+			}
+			fseek(fp, 7, SEEK_CUR);
+		}
+		return 0xe8;
+	}
+}

@@ -1,4 +1,3 @@
-#include "vtf.h"
 
 void color565_to_bytes(u8* c565, u8* c) {
 	c[0] = c565[1] >> 3;
