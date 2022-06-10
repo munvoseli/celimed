@@ -138,9 +138,9 @@ void draw_frames_and_mipmaps(char* fname, GLuint texture, SDL_Window* winp, Paxe
 	}
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	int k = 0;
-	for (int mi = 0; mi < vtfh.mpmCt; ++mi) {
-		int w = vtfh.w >> (vtfh.mpmCt - mi - 1);
-		int h = vtfh.h >> (vtfh.mpmCt - mi - 1);
+	for (int mi = vtfh.mpmCt - 1; mi >= 0; --mi) {
+		int w = vtfh.w >> mi;
+		int h = vtfh.h >> mi;
 		if ((w & 3) || (h & 3)) {
 			if (vtfh.hriFmt == 0xd) {
 				fseek(fp, ruf(w) * ruf(h) / 2, SEEK_CUR);
@@ -209,6 +209,7 @@ int main(int argc, char** argv) {
 				goto end;
 			else if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_a) {
 				play_anim(argv[ti], texture, winp, &p);
+				draw_frames_and_mipmaps(argv[ti], texture, winp, &p);
 			}
 			else if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_j) {
 				++ti;

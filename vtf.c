@@ -117,7 +117,8 @@ int get_hri_location(FILE* fp, VTFHEADER* vtfhp) {
 	if (vtfhp->version[1] == 1)
 		return 0x40 + byte_size_fmt(vtfhp->lriFmt, vtfhp->lriW, vtfhp->lriH);
 	else if (vtfhp->version[1] == 2)
-		return 0x50 + byte_size_fmt(vtfhp->lriFmt, vtfhp->lriW, vtfhp->lriH);
+		return 0x40 + byte_size_fmt(vtfhp->lriFmt, vtfhp->lriW, vtfhp->lriH) + 0x10 * vtfhp->frameCt;
+		// i literally do not know at this point why 0x10 * frameCt, it just works on the images i have
 	else {
 		fseek(fp, 0x50, SEEK_SET);
 		for (int i = 0; i < 10; ++i) {
